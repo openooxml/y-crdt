@@ -594,7 +594,7 @@ impl Branch {
     pub(crate) fn is_parent_of(&self, mut ptr: Option<ItemPtr>) -> bool {
         while let Some(i) = ptr.as_deref() {
             if let Some(parent) = i.parent.as_branch() {
-                if parent.deref() == self {
+                if std::ptr::eq(parent.deref(), self) {
                     return true;
                 }
                 ptr = parent.item;
@@ -946,5 +946,26 @@ impl std::fmt::Debug for BranchID {
             BranchID::Nested(id) => write!(f, "{}", id),
             BranchID::Root(name) => write!(f, "'{}'", name),
         }
+    }
+}
+
+#[cfg(test)]
+mod is_parent_of_tests {
+    use super::Branch;
+    use crate::{Doc, GetString, Map, MapPrelim, MapRef, TextPrelim, TextRef, Transact};
+
+    #[test]
+    fn is_parent_of_tells_a_branch_from_one_with_equal_content() {
+        let doc = Doc::new();
+        let root = doc.get_or_insert_map("root");
+        let twin = doc.get_or_insert_map("twin");
+        let mut txn = doc.transact_mut();
+        let child: MapRef = root.insert(&mut txn, "child", MapPrelim::default());
+        let text: TextRef = child.insert(&mut txn, "text", TextPrelim::new("a"));
+        assert_eq!(text.get_string(&txn), "a");
+        let item = AsRef::<Branch>::as_ref(&text).start;
+        assert!(AsRef::<Branch>::as_ref(&root).is_parent_of(item));
+        assert!(AsRef::<Branch>::as_ref(&child).is_parent_of(item));
+        assert!(!AsRef::<Branch>::as_ref(&twin).is_parent_of(item));
     }
 }
